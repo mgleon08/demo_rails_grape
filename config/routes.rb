@@ -3,5 +3,9 @@ Rails.application.routes.draw do
 
   mount APIBase => "/api"
 
+  if Rails.env.development?
+    mount GrapeSwaggerRails::Engine => '/apidoc'
+  end
+
   match "*path" => "errors#error_404", via: :all
 end
