@@ -1,7 +1,6 @@
 # README
 
-
-# Create Project 
+# Create Project
 
 ```ruby
 rails new demo_rails_grape -T -d mysql
@@ -14,7 +13,16 @@ rails g model User name:string email:string tel:string
 ### rails c
 
 ```ruby
- User.create(name: "leon", email: "text@gmail.com", tel: 888)
+User.create(name: "user1", email: "text1@gmail.com", tel: 111)
+User.create(name: "user2", email: "text2@gmail.com", tel: 222)
+```
+
+or
+
+### seed
+
+```ruby
+rake db:seed
 ```
 
 # Grape
@@ -34,7 +42,7 @@ end
 ```
 
 ```ruby
-# api/api_base.rb
+# /api/api_base.rb
 class APIBase < Grape::API
   # general settings
   format :json
@@ -46,7 +54,7 @@ end
 ```
 
 ```ruby
-# api/v1/base.rb
+# /api/v1/base.rb
 module V1
   class Base < APIBase
     version "v1", using: :path
@@ -56,11 +64,11 @@ end
 ```
 
 ```ruby
-# api/v1/base/user
+# /api/v1/base/user
 module V1
-  class User < APIBase
+  class User < Base
     get :user do
-      { data: "leon" }
+      present :users, "leon"
     end
   end
 end
@@ -101,22 +109,38 @@ end
 ```ruby
 # api/v1/base/user
 module V1
-  class User < APIBase
+  class User < Base
+    get :user do
+      users = ::User.all
+      present :users, users
+    end
+  end
+end
+```
+
+```ruby
+# /api/v1/base.rb
+module V1
+  class Base < APIBase
     version 'v1', using: :path
 
-    get :user do
-      { data: ::User.all }
-    end
+    mount User
 
     if Rails.env.development?
       add_swagger_documentation(
+        api_version: 'v1',
         mount_path: 'swagger_doc',
         hide_format: true,
-        hide_documentation_path: true
+        hide_documentation_path: true,
+        info: {
+          title: 'API Doc',
+          description: '基本使用規則'
+        }
       )
     end
   end
 end
+
 ```
 
 ```ruby
@@ -126,9 +150,83 @@ http://localhost:4321/apidoc
 http://localhost:4321/api/v1/swagger_doc.json
 ```
 
+# grape-entity
+
+JSON 的 field 內容就會是對應 entity 中配置的欄位，能方便的配置需要返回什麼欄位
+
+> An API focused facade that sits on top of an object model.
+
+新增 Gem
+
+```ruby
+# Gemfile
+gem "grape-entity", "~> 0.7.1"
+gem "grape-swagger-entity", "~> 0.3.0"
+```
+
+新增 entities
+
+```ruby
+# /api/v1/entities/user_result.rb
+module V1::Entities
+  class UserResult < Grape::Entity
+    expose :name, documentation: { required: true, type: 'String', desc: '錯誤信息' }
+  end
+end
+```
+
+在 swagger 新增資訊，加上 entity
+
+```ruby
+# /api/v1/user.rb
+module V1
+  class User < Base
+    # users
+    desc "`回傳所有 User 資訊`" do
+      failure [
+        [400, "`找不到任何 user`"],
+        [500, "`unknown`"],
+      ]
+    end
+
+    get :users do
+      users = ::User.all
+      present :users, users, with: V1::Entities::UserResult
+    end
+
+    # user
+    desc "`帶 name 回傳該 User 資訊`" do
+      success model: V1::Entities::UserResult, examples: {
+        'application/json': {
+          name: 'user1'
+        },
+      }
+      failure [
+        [400, "`找不到任何 user`"],
+        [500, "`unknown`"],
+      ]
+    end
+
+    params do
+      optional :name, type: String, allow_blank: false, documentation: {
+        description: "name",
+        example: "user1"
+      }
+      at_least_one_of :name
+    end
+
+    get :user do
+      user = ::User.find_by(name: params["name"]) || "Can't find #{params["name"]}"
+      present :user, user
+    end
+  end
+end
+```
 
 Reference
 
 * [grape](https://github.com/ruby-grape/grape)
 * [grape-swagger](https://github.com/ruby-grape/grape-swagger)
 * [grape-swagger-rails](https://github.com/ruby-grape/grape-swagger-rails)
+* [rails + grape 快速API簡單搭建](https://pathbox.github.io/2016/05/28/rails-grape-api/)
+* [在rails中使用grape來建立API](https://sibevin.github.io/posts/2015-10-01-165320-create-api-with-grape-in-rails)

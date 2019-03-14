@@ -56,6 +56,8 @@ group :development do
   gem 'spring-watcher-listen', '~> 2.0.0'
   gem 'grape-swagger'
   gem 'grape-swagger-rails'
+  gem "grape-entity", "~> 0.7.1"
+  gem "grape-swagger-entity", "~> 0.3.0"
 end
 
 
